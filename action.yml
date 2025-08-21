@@ -8,7 +8,11 @@ inputs:
     default: "true"
   dvc_token:
     description: DVC token for pushing results.
-    required: true
+    required: false
+  pull_dvc:
+    description: Whether or not to pull DVC data before running.
+    required: false
+    default: "true"
   cache_dvc:
     description: Whether or not to cache DVC data.
     required: false
@@ -27,10 +31,12 @@ runs:
         restore-keys: |
           ${{ runner.os }}-dvc-cache-
     - run: calkit config remote-auth
+      if: ${{ inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc == 'true') }}
       shell: bash
       env:
         CALKIT_DVC_TOKEN: ${{ inputs.dvc_token }}
     - run: calkit dvc pull
+      if: ${{ inputs.pull_dvc == 'true' }}
       shell: bash
       continue-on-error: true
     - run: calkit run
