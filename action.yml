@@ -2,6 +2,8 @@ name: Run Calkit
 description: >
   Run a Calkit project pipeline and optionally commit and push results to
   Git and DVC remotes.
+icon: arrow-right
+color: green
 inputs:
   save:
     description: Whether or not to save (commit and push) results.
