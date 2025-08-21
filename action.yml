@@ -1,0 +1,49 @@
+name: Run Calkit
+description: >
+  Run a Calkit project pipeline and optionally commit and push results to
+  Git and DVC remotes.
+inputs:
+  save:
+    description: Whether or not to save (commit and push) results.
+    default: "true"
+  dvc_token:
+    description: DVC token for pushing results.
+    required: true
+  cache_dvc:
+    description: Whether or not to cache DVC data.
+    required: false
+    default: "true"
+outputs: {}
+runs:
+  using: composite
+  steps:
+    - name: Restore DVC cache
+      if: ${{ inputs.cache_dvc == 'true' }}
+      id: cache-dvc-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: .dvc/cache
+        key: ${{ runner.os }}-dvc-cache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-dvc-cache-
+    - run: calkit config remote-auth
+      shell: bash
+      env:
+        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token }}
+    - run: calkit dvc pull
+      shell: bash
+      continue-on-error: true
+    - run: calkit run
+      shell: bash
+    - run: calkit save -am "Run pipeline"
+      if: ${{ inputs.save == 'true' }}
+      shell: bash
+      env:
+        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token }}
+    - name: Save DVC cache
+      if: ${{ inputs.cache_dvc == 'true' }}
+      id: cache-dvc-save
+      uses: actions/cache/save@v4
+      with:
+        path: .dvc/cache
+        key: ${{ runner.os }}-dvc-cache-${{ github.sha }}
