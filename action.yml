@@ -20,6 +20,10 @@ inputs:
     description: Whether or not to cache DVC data.
     required: false
     default: "true"
+  run_args:
+    description: arguments passed to calkit run command
+    required: false
+    default: ""
 outputs: {}
 runs:
   using: composite
@@ -42,7 +46,7 @@ runs:
       if: ${{ inputs.pull_dvc == 'true' }}
       shell: bash
       continue-on-error: true
-    - run: calkit run
+    - run: calkit run ${{ inputs.run_args }}
       shell: bash
     - run: calkit save -am "Run pipeline"
       if: ${{ inputs.save == 'true' }}
