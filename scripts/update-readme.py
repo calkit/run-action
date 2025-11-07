@@ -31,7 +31,6 @@ def main() -> int:
     yaml_text = EXAMPLE.read_text(encoding="utf-8").rstrip()
     replacement = (
         f"{START}\n```yaml\n"
-        f"# Auto-generated from example.yml — do not edit this block by hand.\n"
         f"{yaml_text}\n```\n{END}"
     )
     new_md = md[:s] + replacement + md[e + len(END) :]

@@ -10,9 +10,9 @@ Note the permissions, concurrency, and checkout options.
 The action will also require a `dvc_token` input,
 which should be set in the repository's Actions secrets.
 
+<!-- Do not edit the snippet below since it is automatically populated -->
 <!-- snippet:example.yml:start -->
 ```yaml
-# Auto-generated from example.yml — do not edit this block by hand.
 name: Run pipeline
 
 on:
