@@ -7,10 +7,10 @@ branding:
   color: green
 inputs:
   save:
-    description: Whether or not to save (commit and push) results.
+    description: Whether or not to save (commit and push) results to Git and DVC remotes.
     default: "true"
   dvc_token:
-    description: DVC token for pushing results.
+    description: DVC token for pushing results. If not provided, will be obtained via GitHub OIDC.
     required: false
   pull_dvc:
     description: Whether or not to pull DVC data before running.
@@ -33,11 +33,30 @@ runs:
         key: ${{ runner.os }}-dvc-cache-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-dvc-cache-
+    - name: Get GitHub OIDC token
+      if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc == 'true') }}
+      id: get-oidc-token
+      shell: bash
+      run: |
+        OIDC_TOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=calkit.io" -s | jq -r '.value')
+        echo "::add-mask::$OIDC_TOKEN"
+        echo "oidc-token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
+    - name: Exchange OIDC token for Calkit DVC token
+      if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc == 'true') }}
+      id: get-dvc-token
+      shell: bash
+      run: |
+        CALKIT_DVC_TOKEN=$(curl -X POST https://api.calkit.io/login/github-oidc \
+          -H "Content-Type: application/json" \
+          -d '{"token":"${{ steps.get-oidc-token.outputs.oidc-token }}"}' \
+          -s | jq -r '.dvc_token')
+        echo "::add-mask::$CALKIT_DVC_TOKEN"
+        echo "dvc-token=$CALKIT_DVC_TOKEN" >> $GITHUB_OUTPUT
     - run: calkit config remote-auth
-      if: ${{ inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc == 'true') }}
+      if: ${{ inputs.save == 'true' || inputs.pull_dvc == 'true' }}
       shell: bash
       env:
-        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token }}
+        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-dvc-token.outputs.dvc-token }}
     - run: calkit dvc pull
       if: ${{ inputs.pull_dvc == 'true' }}
       shell: bash
@@ -48,7 +67,7 @@ runs:
       if: ${{ inputs.save == 'true' }}
       shell: bash
       env:
-        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token }}
+        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-dvc-token.outputs.dvc-token }}
     - name: Save DVC cache
       if: ${{ inputs.cache_dvc == 'true' }}
       id: cache-dvc-save
