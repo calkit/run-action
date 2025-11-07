@@ -7,8 +7,6 @@ A GitHub Action to run a Calkit project's pipeline and optionally save results
 
 The example workflow below shows how to run a Calkit project, saving results.
 Note the permissions, concurrency, and checkout options.
-The action will also require a `dvc_token` input,
-which should be set in the repository's Actions secrets.
 
 <!-- Do not edit the snippet below since it is automatically populated -->
 <!-- snippet:example.yml:start -->
