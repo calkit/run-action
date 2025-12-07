@@ -21,7 +21,7 @@ inputs:
     required: false
     default: "true"
   run_args:
-    description: arguments passed to calkit run command
+    description: Arguments passed to calkit run command.
     required: false
     default: ""
 outputs: {}
