@@ -31,7 +31,7 @@ runs:
     - name: Restore DVC cache
       if: ${{ inputs.cache_dvc == 'true' }}
       id: cache-dvc-restore
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: .dvc/cache
         key: ${{ runner.os }}-dvc-cache-${{ github.sha }}
@@ -82,7 +82,7 @@ runs:
     - name: Save DVC cache
       if: ${{ inputs.cache_dvc == 'true' }}
       id: cache-dvc-save
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: .dvc/cache
         key: ${{ runner.os }}-dvc-cache-${{ github.sha }}
