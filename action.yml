@@ -1,7 +1,7 @@
 name: Run Calkit
 description: >
-  Run a Calkit project pipeline and optionally commit and push results to
-  Git and DVC remotes.
+  Run a Calkit project pipeline and optionally commit and push results to Git
+  and DVC remotes.
 branding:
   icon: arrow-right
   color: green
@@ -10,7 +10,8 @@ inputs:
     description: Whether or not to save (commit and push) results to Git and DVC remotes.
     default: "true"
   dvc_token:
-    description: DVC token for pushing results. If not provided, will be obtained via GitHub OIDC.
+    description: DVC token for pushing results. If not provided, will be obtained
+      via GitHub OIDC.
     required: false
   pull_dvc:
     description: Whether or not to pull DVC data before running.
@@ -38,7 +39,8 @@ runs:
         restore-keys: |
           ${{ runner.os }}-dvc-cache-
     - name: Get GitHub OIDC token
-      if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc == 'true') }}
+      if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc ==
+        'true') }}
       id: get-oidc-token
       shell: bash
       run: |
@@ -49,25 +51,27 @@ runs:
         fi
         echo "::add-mask::$OIDC_TOKEN"
         echo "oidc-token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
-    - name: Exchange OIDC token for Calkit DVC token
-      if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc == 'true') }}
-      id: get-dvc-token
+    - name: Exchange OIDC token for Calkit token
+      if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc ==
+        'true') }}
+      id: get-calkit-token
       shell: bash
       run: |
-        CALKIT_DVC_TOKEN=$(curl -X POST https://api.calkit.io/login/github-oidc \
+        CALKIT_TOKEN=$(curl -X POST https://api.calkit.io/login/github-oidc \
           -H "Authorization: Bearer ${{ steps.get-oidc-token.outputs.oidc-token }}" \
           -s | jq -r '.access_token')
-        if [ -z "$CALKIT_DVC_TOKEN" ] || [ "$CALKIT_DVC_TOKEN" == "null" ]; then
-          echo "Failed to obtain Calkit DVC token"
+        if [ -z "$CALKIT_TOKEN" ] || [ "$CALKIT_TOKEN" == "null" ]; then
+          echo "Failed to obtain Calkit token"
           exit 1
         fi
-        echo "::add-mask::$CALKIT_DVC_TOKEN"
-        echo "dvc-token=$CALKIT_DVC_TOKEN" >> $GITHUB_OUTPUT
+        echo "::add-mask::$CALKIT_TOKEN"
+        echo "calkit-token=$CALKIT_TOKEN" >> $GITHUB_OUTPUT
     - run: calkit config remote-auth
       if: ${{ inputs.save == 'true' || inputs.pull_dvc == 'true' }}
       shell: bash
       env:
-        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-dvc-token.outputs.dvc-token }}
+        CALKIT_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
+        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
     - run: calkit dvc pull
       if: ${{ inputs.pull_dvc == 'true' }}
       shell: bash
@@ -78,7 +82,8 @@ runs:
       if: ${{ inputs.save == 'true' }}
       shell: bash
       env:
-        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-dvc-token.outputs.dvc-token }}
+        CALKIT_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
+        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
     - name: Save DVC cache
       if: ${{ inputs.cache_dvc == 'true' }}
       id: cache-dvc-save
