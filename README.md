@@ -58,7 +58,8 @@ jobs:
 If simply running the pipeline is desired, the `save` option can be set to
 `false`.
 Additionally, caching DVC data can be disabled with `cache_dvc: false`.
-When caching is enabled, the action restores and saves the DVC cache using the
-current branch name. If the current branch cache does not exist yet, it falls
-back to the default branch cache for the restore step and still saves the final
-cache under the current branch key.
+When caching is enabled, the action saves DVC cache entries using the current
+branch name plus the current commit SHA.
+The restore step first looks for the
+most recent cache for the current branch and then falls back to the default
+branch cache if the current branch cache doesn't exist yet.
