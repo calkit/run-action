@@ -29,15 +29,23 @@ outputs: {}
 runs:
   using: composite
   steps:
-    - name: Restore DVC cache
+    - name: Restore DVC cache for current branch
       if: ${{ inputs.cache_dvc == 'true' }}
-      id: cache-dvc-restore
+      id: cache-dvc-restore-branch
       uses: actions/cache/restore@v5
       with:
         path: .dvc/cache
-        key: ${{ runner.os }}-dvc-cache-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-dvc-cache-
+        key: ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}
+    - name: Restore DVC cache for default branch
+      if: ${{ inputs.cache_dvc == 'true' &&
+        steps.cache-dvc-restore-branch.outputs.cache-hit != 'true' &&
+        (github.head_ref || github.ref_name) !=
+        github.event.repository.default_branch }}
+      id: cache-dvc-restore-default
+      uses: actions/cache/restore@v5
+      with:
+        path: .dvc/cache
+        key: ${{ runner.os }}-dvc-cache-${{ github.event.repository.default_branch }}
     - name: Get GitHub OIDC token
       if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc ==
         'true') }}
@@ -90,4 +98,4 @@ runs:
       uses: actions/cache/save@v5
       with:
         path: .dvc/cache
-        key: ${{ runner.os }}-dvc-cache-${{ github.sha }}
+        key: ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}
