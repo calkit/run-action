@@ -162,7 +162,7 @@ runs:
         echo "unsupported_kinds=${unsupported_kinds}" >> "$GITHUB_OUTPUT"
 
     - name: Setup uv
-      if: ${{ steps.detect.outputs.calkit_missing == 'true' && steps.detect.outputs.uv_missing == 'true' }}
+      if: ${{ steps.detect.outputs.uv_missing == 'true' }}
       uses: astral-sh/setup-uv@v5
 
     - name: Install Calkit
