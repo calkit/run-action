@@ -10,7 +10,8 @@ inputs:
     description: Whether or not to save (commit and push) results to Git and DVC remotes.
     default: "true"
   dvc_token:
-    description: DVC token for pushing results. If not provided, will be obtained
+    description:
+      DVC token for pushing results. If not provided, will be obtained
       via GitHub OIDC.
     required: false
   pull_dvc:
@@ -29,17 +30,201 @@ outputs: {}
 runs:
   using: composite
   steps:
+    - name: Detect setup requirements
+      id: detect
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        has_kind() {
+          local kind="$1"
+          grep -Eiq "^[[:space:]]*kind:[[:space:]]*[\"']?${kind}([\"']?[[:space:]#]|$)" calkit.yaml
+        }
+
+        if command -v calkit >/dev/null 2>&1; then
+          calkit_missing=false
+        else
+          calkit_missing=true
+        fi
+        echo "calkit_missing=${calkit_missing}" >> "$GITHUB_OUTPUT"
+
+        if command -v uv >/dev/null 2>&1; then
+          uv_missing=false
+        else
+          uv_missing=true
+        fi
+        echo "uv_missing=${uv_missing}" >> "$GITHUB_OUTPUT"
+
+        if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
+          python_missing=false
+        else
+          python_missing=true
+        fi
+
+        if command -v conda >/dev/null 2>&1; then
+          conda_missing=false
+        else
+          conda_missing=true
+        fi
+
+        if command -v pixi >/dev/null 2>&1; then
+          pixi_missing=false
+        else
+          pixi_missing=true
+        fi
+
+        if command -v julia >/dev/null 2>&1; then
+          julia_missing=false
+        else
+          julia_missing=true
+        fi
+
+        if command -v Rscript >/dev/null 2>&1 || command -v R >/dev/null 2>&1; then
+          r_missing=false
+        else
+          r_missing=true
+        fi
+
+        if command -v matlab >/dev/null 2>&1; then
+          matlab_missing=false
+        else
+          matlab_missing=true
+        fi
+
+        if command -v docker >/dev/null 2>&1 && docker buildx version >/dev/null 2>&1; then
+          docker_buildx_missing=false
+        else
+          docker_buildx_missing=true
+        fi
+
+        needs_python=false
+        needs_conda=false
+        needs_pixi=false
+        needs_julia=false
+        needs_r=false
+        needs_matlab=false
+        needs_docker=false
+        unsupported_kinds=""
+
+        if [ -f calkit.yaml ]; then
+          if has_kind "uv-venv" || has_kind "venv"; then
+            if [ "$python_missing" = true ]; then
+              needs_python=true
+            fi
+          fi
+          if has_kind "conda"; then
+            if [ "$conda_missing" = true ]; then
+              needs_conda=true
+            fi
+            if [ "$python_missing" = true ]; then
+              needs_python=true
+            fi
+          fi
+          if has_kind "pixi"; then
+            if [ "$pixi_missing" = true ]; then
+              needs_pixi=true
+            fi
+          fi
+          if has_kind "julia"; then
+            if [ "$julia_missing" = true ]; then
+              needs_julia=true
+            fi
+          fi
+          if has_kind "renv"; then
+            if [ "$r_missing" = true ]; then
+              needs_r=true
+            fi
+          fi
+          if has_kind "matlab"; then
+            if [ "$matlab_missing" = true ]; then
+              needs_matlab=true
+            fi
+          fi
+          if has_kind "docker"; then
+            if [ "$docker_buildx_missing" = true ]; then
+              needs_docker=true
+            fi
+          fi
+
+          # These kinds do not have a direct setup action in this composite action.
+          if has_kind "ssh"; then unsupported_kinds="${unsupported_kinds}ssh,"; fi
+          if has_kind "slurm"; then unsupported_kinds="${unsupported_kinds}slurm,"; fi
+          unsupported_kinds="${unsupported_kinds%,}"
+        fi
+
+        echo "needs_python=${needs_python}" >> "$GITHUB_OUTPUT"
+        echo "needs_conda=${needs_conda}" >> "$GITHUB_OUTPUT"
+        echo "needs_pixi=${needs_pixi}" >> "$GITHUB_OUTPUT"
+        echo "needs_julia=${needs_julia}" >> "$GITHUB_OUTPUT"
+        echo "needs_r=${needs_r}" >> "$GITHUB_OUTPUT"
+        echo "needs_matlab=${needs_matlab}" >> "$GITHUB_OUTPUT"
+        echo "needs_docker=${needs_docker}" >> "$GITHUB_OUTPUT"
+        echo "unsupported_kinds=${unsupported_kinds}" >> "$GITHUB_OUTPUT"
+
+    - name: Setup uv
+      if: ${{ steps.detect.outputs.calkit_missing == 'true' && steps.detect.outputs.uv_missing == 'true' }}
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install Calkit
+      if: ${{ steps.detect.outputs.calkit_missing == 'true' }}
+      shell: bash
+      run: |
+        uv tool install calkit-python
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Setup Python
+      if: ${{ steps.detect.outputs.needs_python == 'true' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Setup Miniconda
+      if: ${{ steps.detect.outputs.needs_conda == 'true' }}
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-activate-base: true
+
+    - name: Setup Pixi
+      if: ${{ steps.detect.outputs.needs_pixi == 'true' }}
+      uses: prefix-dev/setup-pixi@v0
+
+    - name: Setup Julia
+      if: ${{ steps.detect.outputs.needs_julia == 'true' }}
+      uses: julia-actions/setup-julia@v2
+      with:
+        version: "1"
+
+    - name: Setup R
+      if: ${{ steps.detect.outputs.needs_r == 'true' }}
+      uses: r-lib/actions/setup-r@v2
+
+    - name: Setup MATLAB
+      if: ${{ steps.detect.outputs.needs_matlab == 'true' }}
+      uses: matlab-actions/setup-matlab@v2
+
+    - name: Setup Docker Buildx
+      if: ${{ steps.detect.outputs.needs_docker == 'true' }}
+      uses: docker/setup-buildx-action@v3
+
+    - name: Report unsupported environment kinds
+      if: ${{ steps.detect.outputs.unsupported_kinds != '' }}
+      shell: bash
+      run: |
+        echo "::notice::Detected environment kinds without explicit setup action: ${{ steps.detect.outputs.unsupported_kinds }}"
+
     - name: Restore DVC cache for current branch
       if: ${{ inputs.cache_dvc == 'true' }}
       id: cache-dvc-restore
       uses: actions/cache/restore@v5
       with:
         path: .dvc/cache
-        key: ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-${{
+        key:
+          ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-${{
           github.sha }}
         restore-keys: |
           ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-
           ${{ runner.os }}-dvc-cache-${{ github.event.repository.default_branch }}-
+
     - name: Get GitHub OIDC token
       if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc ==
         'true') }}
@@ -53,6 +238,7 @@ runs:
         fi
         echo "::add-mask::$OIDC_TOKEN"
         echo "oidc-token=$OIDC_TOKEN" >> $GITHUB_OUTPUT
+
     - name: Exchange OIDC token for Calkit token
       if: ${{ !inputs.dvc_token && (inputs.save == 'true' || inputs.pull_dvc ==
         'true') }}
@@ -68,6 +254,7 @@ runs:
         fi
         echo "::add-mask::$CALKIT_TOKEN"
         echo "calkit-token=$CALKIT_TOKEN" >> $GITHUB_OUTPUT
+
     - run: calkit config remote-auth
       if: ${{ inputs.save == 'true' || inputs.pull_dvc == 'true' }}
       shell: bash
@@ -86,11 +273,13 @@ runs:
       env:
         CALKIT_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
         CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
+
     - name: Save DVC cache
       if: ${{ inputs.cache_dvc == 'true' }}
       id: cache-dvc-save
       uses: actions/cache/save@v5
       with:
         path: .dvc/cache
-        key: ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-${{
+        key:
+          ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-${{
           github.sha }}
