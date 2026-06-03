@@ -141,8 +141,12 @@ runs:
             fi
           fi
           if has_kind "docker"; then
-            if [ "$docker_buildx_missing" = true ]; then
-              needs_docker=true
+            if command -v docker >/dev/null 2>&1; then
+              if [ "$docker_buildx_missing" = true ]; then
+                needs_docker=true
+              fi
+            else
+              unsupported_kinds="${unsupported_kinds}docker,"
             fi
           fi
 
