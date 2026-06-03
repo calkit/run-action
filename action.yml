@@ -30,35 +30,66 @@ outputs: {}
 runs:
   using: composite
   steps:
+    - name: Check for uv and Calkit
+      id: tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        if command -v uv >/dev/null 2>&1; then
+          echo "uv_missing=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "uv_missing=true" >> "$GITHUB_OUTPUT"
+        fi
+        if command -v calkit >/dev/null 2>&1; then
+          echo "calkit_missing=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "calkit_missing=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    # uv is only needed up front to install Calkit; uv-venv projects that
+    # need uv but already have Calkit are handled by the uv step after
+    # detection.
+    - name: Setup uv
+      if: ${{ steps.tools.outputs.uv_missing == 'true' && steps.tools.outputs.calkit_missing == 'true' }}
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install Calkit
+      if: ${{ steps.tools.outputs.calkit_missing == 'true' }}
+      shell: bash
+      run: |
+        uv tool install calkit-python
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
     - name: Detect setup requirements
       id: detect
       shell: bash
       run: |
         set -euo pipefail
 
+        # Let Calkit parse its own config so we only look at the
+        # `environments` section (a real YAML parse that also resolves
+        # includes), rather than grepping every `kind:` in the file --
+        # pipeline stages, dependencies, datasets, etc. all use `kind:` too.
+        kinds=$(calkit list environments 2>/dev/null \
+          | grep -E '^[[:space:]]+kind:' \
+          | sed -E 's/^[[:space:]]+kind:[[:space:]]*//; s/[[:space:]]+#.*$//' \
+          | tr -d "\"'" | sort -u || true)
+        echo "Detected environment kinds: $(echo "$kinds" | paste -sd, -)"
+
         has_kind() {
-          local kind="$1"
-          grep -Eiq "^[[:space:]]*kind:[[:space:]]*[\"']?${kind}([\"']?[[:space:]#]|$)" calkit.yaml
+          printf '%s\n' "$kinds" | grep -qx "$1"
         }
-
-        if command -v calkit >/dev/null 2>&1; then
-          calkit_missing=false
-        else
-          calkit_missing=true
-        fi
-        echo "calkit_missing=${calkit_missing}" >> "$GITHUB_OUTPUT"
-
-        if command -v uv >/dev/null 2>&1; then
-          uv_missing=false
-        else
-          uv_missing=true
-        fi
-        echo "uv_missing=${uv_missing}" >> "$GITHUB_OUTPUT"
 
         if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
           python_missing=false
         else
           python_missing=true
+        fi
+
+        if command -v uv >/dev/null 2>&1; then
+          uv_missing=false
+        else
+          uv_missing=true
         fi
 
         if command -v conda >/dev/null 2>&1; then
@@ -108,62 +139,63 @@ runs:
         docker_cli_missing=false
         unsupported_kinds=""
 
-        if [ "$calkit_missing" = true ]; then
-          needs_uv=true
-        fi
-
-        if [ -f calkit.yaml ]; then
-          if has_kind "uv-venv" || has_kind "venv"; then
-            if [ "$python_missing" = true ]; then
-              needs_python=true
-            fi
+        if has_kind "uv-venv" || has_kind "venv" || has_kind "uv"; then
+          if [ "$python_missing" = true ]; then
+            needs_python=true
           fi
-          if has_kind "uv-venv"; then
+        fi
+        # uv is installed up front to install Calkit, so it is normally
+        # already present here; this covers the case where Calkit was
+        # pre-installed (so we skipped the initial uv setup) but uv is not.
+        if has_kind "uv-venv" || has_kind "uv"; then
+          if [ "$uv_missing" = true ]; then
             needs_uv=true
           fi
-          if has_kind "conda"; then
-            if [ "$conda_missing" = true ]; then
-              needs_conda=true
-            fi
-            if [ "$python_missing" = true ]; then
-              needs_python=true
-            fi
-          fi
-          if has_kind "pixi"; then
-            if [ "$pixi_missing" = true ]; then
-              needs_pixi=true
-            fi
-          fi
-          if has_kind "julia"; then
-            if [ "$julia_missing" = true ]; then
-              needs_julia=true
-            fi
-          fi
-          if has_kind "renv"; then
-            if [ "$r_missing" = true ]; then
-              needs_r=true
-            fi
-          fi
-          if has_kind "matlab"; then
-            if [ "$matlab_missing" = true ]; then
-              needs_matlab=true
-            fi
-          fi
-          if has_kind "docker"; then
-            if command -v docker >/dev/null 2>&1; then
-              if [ "$docker_buildx_missing" = true ]; then
-                needs_docker=true
-              fi
-            else
-              docker_cli_missing=true
-            fi
-          fi
-
-          # These kinds do not have a direct setup action in this composite action.
-          if has_kind "ssh"; then unsupported_kinds="${unsupported_kinds}ssh,"; fi
-          if has_kind "slurm"; then unsupported_kinds="${unsupported_kinds}slurm,"; fi
-          unsupported_kinds="${unsupported_kinds%,}"
         fi
+        if has_kind "conda"; then
+          if [ "$conda_missing" = true ]; then
+            needs_conda=true
+          fi
+          if [ "$python_missing" = true ]; then
+            needs_python=true
+          fi
+        fi
+        if has_kind "pixi"; then
+          if [ "$pixi_missing" = true ]; then
+            needs_pixi=true
+          fi
+        fi
+        if has_kind "julia"; then
+          if [ "$julia_missing" = true ]; then
+            needs_julia=true
+          fi
+        fi
+        if has_kind "renv"; then
+          if [ "$r_missing" = true ]; then
+            needs_r=true
+          fi
+        fi
+        if has_kind "matlab"; then
+          if [ "$matlab_missing" = true ]; then
+            needs_matlab=true
+          fi
+        fi
+        if has_kind "docker"; then
+          if command -v docker >/dev/null 2>&1; then
+            if [ "$docker_buildx_missing" = true ]; then
+              needs_docker=true
+            fi
+          else
+            docker_cli_missing=true
+          fi
+        fi
+
+        # These kinds do not have a direct setup action in this composite action.
+        if has_kind "ssh"; then unsupported_kinds="${unsupported_kinds}ssh,"; fi
+        if has_kind "slurm"; then unsupported_kinds="${unsupported_kinds}slurm,"; fi
+        if has_kind "pbs"; then unsupported_kinds="${unsupported_kinds}pbs,"; fi
+        if has_kind "nix"; then unsupported_kinds="${unsupported_kinds}nix,"; fi
+        unsupported_kinds="${unsupported_kinds%,}"
 
         echo "needs_python=${needs_python}" >> "$GITHUB_OUTPUT"
         echo "needs_uv=${needs_uv}" >> "$GITHUB_OUTPUT"
@@ -176,16 +208,9 @@ runs:
         echo "docker_cli_missing=${docker_cli_missing}" >> "$GITHUB_OUTPUT"
         echo "unsupported_kinds=${unsupported_kinds}" >> "$GITHUB_OUTPUT"
 
-    - name: Setup uv
-      if: ${{ steps.detect.outputs.needs_uv == 'true' && steps.detect.outputs.uv_missing == 'true' }}
+    - name: Setup uv for uv and uv-venv environments
+      if: ${{ steps.detect.outputs.needs_uv == 'true' }}
       uses: astral-sh/setup-uv@v5
-
-    - name: Install Calkit
-      if: ${{ steps.detect.outputs.calkit_missing == 'true' }}
-      shell: bash
-      run: |
-        uv tool install calkit-python
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Setup Python
       if: ${{ steps.detect.outputs.needs_python == 'true' }}
@@ -281,12 +306,15 @@ runs:
       env:
         CALKIT_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
         CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
+
     - run: calkit dvc pull
       if: ${{ inputs.pull_dvc == 'true' }}
       shell: bash
       continue-on-error: true
+
     - run: calkit run ${{ inputs.run_args }}
       shell: bash
+
     - run: calkit save -am "Run pipeline"
       if: ${{ inputs.save == 'true' }}
       shell: bash
