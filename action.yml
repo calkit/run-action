@@ -98,19 +98,28 @@ runs:
         fi
 
         needs_python=false
+        needs_uv=false
         needs_conda=false
         needs_pixi=false
         needs_julia=false
         needs_r=false
         needs_matlab=false
         needs_docker=false
+        docker_cli_missing=false
         unsupported_kinds=""
+
+        if [ "$calkit_missing" = true ]; then
+          needs_uv=true
+        fi
 
         if [ -f calkit.yaml ]; then
           if has_kind "uv-venv" || has_kind "venv"; then
             if [ "$python_missing" = true ]; then
               needs_python=true
             fi
+          fi
+          if has_kind "uv-venv"; then
+            needs_uv=true
           fi
           if has_kind "conda"; then
             if [ "$conda_missing" = true ]; then
@@ -146,7 +155,7 @@ runs:
                 needs_docker=true
               fi
             else
-              unsupported_kinds="${unsupported_kinds}docker,"
+              docker_cli_missing=true
             fi
           fi
 
@@ -157,16 +166,18 @@ runs:
         fi
 
         echo "needs_python=${needs_python}" >> "$GITHUB_OUTPUT"
+        echo "needs_uv=${needs_uv}" >> "$GITHUB_OUTPUT"
         echo "needs_conda=${needs_conda}" >> "$GITHUB_OUTPUT"
         echo "needs_pixi=${needs_pixi}" >> "$GITHUB_OUTPUT"
         echo "needs_julia=${needs_julia}" >> "$GITHUB_OUTPUT"
         echo "needs_r=${needs_r}" >> "$GITHUB_OUTPUT"
         echo "needs_matlab=${needs_matlab}" >> "$GITHUB_OUTPUT"
         echo "needs_docker=${needs_docker}" >> "$GITHUB_OUTPUT"
+        echo "docker_cli_missing=${docker_cli_missing}" >> "$GITHUB_OUTPUT"
         echo "unsupported_kinds=${unsupported_kinds}" >> "$GITHUB_OUTPUT"
 
     - name: Setup uv
-      if: ${{ steps.detect.outputs.uv_missing == 'true' }}
+      if: ${{ steps.detect.outputs.needs_uv == 'true' && steps.detect.outputs.uv_missing == 'true' }}
       uses: astral-sh/setup-uv@v5
 
     - name: Install Calkit
@@ -215,6 +226,12 @@ runs:
       shell: bash
       run: |
         echo "::notice::Detected environment kinds without explicit setup action: ${{ steps.detect.outputs.unsupported_kinds }}"
+
+    - name: Report missing Docker CLI for docker environments
+      if: ${{ steps.detect.outputs.docker_cli_missing == 'true' }}
+      shell: bash
+      run: |
+        echo "::notice::Detected kind 'docker' in calkit.yaml, but Docker CLI is not available on this runner. Install Docker on the runner to use docker environments."
 
     - name: Restore DVC cache for current branch
       if: ${{ inputs.cache_dvc == 'true' }}
