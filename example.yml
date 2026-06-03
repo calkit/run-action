@@ -31,6 +31,6 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-      # Calkit automatically runs necessary setup actions based on environments
+      # This action automatically runs necessary setup steps based on environments
       - name: Run Calkit
         uses: calkit/run-action@v2
