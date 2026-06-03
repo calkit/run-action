@@ -105,18 +105,17 @@ runs:
         fi
 
         # Calkit manages Julia versions via juliaup (e.g. `juliaup add
-        # 1.11.7` for a `julia: "1.11.7"` environment). We install juliaup
-        # only when the runner has no Julia tooling at all; if the user
-        # already set up julia or juliaup themselves, we leave it alone.
+        # 1.11.7` for a `julia: "1.11.7"` environment), so juliaup -- not a
+        # fixed Julia -- is what must be present. We deliberately gate only on
+        # juliaup and ignore any plain `julia` on the runner: hosted runner
+        # images ship a pinned Julia that usually won't match the project's
+        # required version, and without juliaup Calkit can't install the right
+        # one. Users who manage Julia themselves should install juliaup, which
+        # this then detects and leaves alone.
         if command -v juliaup >/dev/null 2>&1; then
           juliaup_missing=false
         else
           juliaup_missing=true
-        fi
-        if command -v julia >/dev/null 2>&1; then
-          julia_missing=false
-        else
-          julia_missing=true
         fi
 
         if command -v Rscript >/dev/null 2>&1 || command -v R >/dev/null 2>&1; then
@@ -175,7 +174,7 @@ runs:
           fi
         fi
         if has_kind "julia"; then
-          if [ "$juliaup_missing" = true ] && [ "$julia_missing" = true ]; then
+          if [ "$juliaup_missing" = true ]; then
             needs_julia=true
           fi
         fi
