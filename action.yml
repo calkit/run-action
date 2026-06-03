@@ -231,10 +231,13 @@ runs:
       uses: conda-incubator/setup-miniconda@v3
       with:
         auto-activate-base: true
+        conda-remove-defaults: true
 
     - name: Setup Pixi
       if: ${{ steps.detect.outputs.needs_pixi == 'true' }}
-      uses: prefix-dev/setup-pixi@v0
+      uses: prefix-dev/setup-pixi@v0.9.6
+      with:
+        run-install: false
 
     # Install juliaup (not a fixed Julia) so Calkit can install and select
     # the exact Julia version(s) declared in each environment via

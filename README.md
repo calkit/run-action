@@ -63,3 +63,11 @@ branch name plus the current commit SHA.
 The restore step first looks for the
 most recent cache for the current branch and then falls back to the default
 branch cache if the current branch cache doesn't exist yet.
+
+## System dependencies
+
+System dependencies like `uv`, `pixi`, `conda`, `juliaup` will be installed
+automatically if missing, and if the project has an environment with the
+corresponding kind.
+If you'd like control over which versions are used, you can add setup steps
+before the Calkit Action, and Calkit will detect and skip installation.
