@@ -1,0 +1,58 @@
+name: Test action
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+# Saving/pulling is disabled below, so no Calkit/DVC token (and no OIDC) is
+# needed and the default read-only token is sufficient.
+permissions:
+  contents: read
+
+jobs:
+  run-examples:
+    name: ${{ matrix.example.repo }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each entry clones a real Calkit example project and runs a single
+        # lightweight stage so the action's environment setup is exercised
+        # without building the heavy `tex` (texlive/texlive Docker) env that
+        # these projects use for their paper-build stages. `target` must be a
+        # stage whose environment is the one we want to verify got installed.
+        # To cover another kind, add an example repo + a cheap target here.
+        example:
+          - repo: example-basic
+            target: collect-data # uses the `py` (uv-venv) environment
+            verify: uv --version
+          - repo: example-julia
+            target: run-script # uses the `main` (julia) environment
+            verify: julia --version
+    steps:
+      # The composite action's steps run in $GITHUB_WORKSPACE, and it reads
+      # ./calkit.yaml from there, so the example project must be the workspace
+      # root. The workspace is empty at job start, so cloning into "." works;
+      # we then check this action out into a subdirectory and reference it
+      # locally via `uses: ./_action`.
+      - name: Clone example project
+        run: git clone --depth 1 "https://github.com/calkit/${{ matrix.example.repo }}.git" .
+
+      - name: Check out this action
+        uses: actions/checkout@v4
+        with:
+          path: _action
+
+      - name: Run Calkit action
+        uses: ./_action
+        with:
+          save: "false"
+          pull_dvc: "false"
+          cache_dvc: "false"
+          run_args: ${{ matrix.example.target }}
+
+      - name: Verify expected tooling was installed
+        run: ${{ matrix.example.verify }}

@@ -1,0 +1,41 @@
+name: Move floating version tags
+
+# When a release is published with a full semver tag (e.g. v2.3.1), move the
+# floating major (v2) and minor (v2.3) tags to point at it, so consumers
+# pinned to `@v2` or `@v2.3` get the new release. Prereleases (e.g.
+# v2.4.0-rc.1) are skipped, so you can publish them without shipping to
+# everyone on `@v2`.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update major and minor tags
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}" # e.g. v2.3.1
+          # Only move tags for plain vMAJOR.MINOR.PATCH releases.
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::notice::Tag '$TAG' is not a vX.Y.Z release; not moving floating tags."
+            exit 0
+          fi
+          MAJOR="${TAG%%.*}" # v2
+          MINOR="${TAG%.*}"  # v2.3
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "$MAJOR" "$TAG"
+          git tag -f "$MINOR" "$TAG"
+          git push -f origin "$MAJOR" "$MINOR"
+          echo "Moved $MAJOR and $MINOR -> $TAG"

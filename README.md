@@ -7,6 +7,9 @@ A GitHub Action to run a Calkit project's pipeline and optionally save results
 
 The example workflow below shows how to run a Calkit project, saving results.
 Note the permissions, concurrency, and checkout options.
+The action detects required environment kinds from `calkit.yaml` and sets up
+needed tooling (for example Calkit via `uv`, Julia, Pixi, Conda, R, MATLAB,
+and Docker Buildx) before running.
 
 <!-- Do not edit the snippet below since it is automatically populated -->
 <!-- snippet:example.yml:start -->
@@ -44,10 +47,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v5
-      - name: Install Calkit
-        run: uv tool install calkit-python
+      # This action automatically runs necessary setup steps based on environments
       - name: Run Calkit
         uses: calkit/run-action@v2
 ```
