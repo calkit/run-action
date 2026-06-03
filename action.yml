@@ -322,6 +322,9 @@ runs:
       if: ${{ inputs.pull_dvc == 'true' }}
       shell: bash
       continue-on-error: true
+      env:
+        CALKIT_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
+        CALKIT_DVC_TOKEN: ${{ inputs.dvc_token || steps.get-calkit-token.outputs.calkit-token }}
 
     - run: calkit run ${{ inputs.run_args }}
       shell: bash
