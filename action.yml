@@ -218,9 +218,8 @@ runs:
       uses: actions/cache/restore@v5
       with:
         path: .dvc/cache
-        key:
-          ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-${{
-          github.sha }}
+        key: >-
+          ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-dvc-cache-${{ github.head_ref || github.ref_name }}-
           ${{ runner.os }}-dvc-cache-${{ github.event.repository.default_branch }}-
